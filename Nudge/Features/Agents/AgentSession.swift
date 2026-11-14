@@ -37,6 +37,9 @@ struct AgentSession: Decodable, Identifiable {
     let edited: [String]?
     /// Whether Cursor runs the pending Shell command in its sandbox, which never asks you.
     let sandboxed: Bool?
+    /// The agent's transcript (`transcript_path`), which shows activity and interrupts that
+    /// fire no hook; nil from older hooks and agents that don't send one.
+    let transcript: String?
     let updatedAt: TimeInterval
     let turnStartedAt: TimeInterval
 

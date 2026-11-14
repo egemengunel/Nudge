@@ -13,7 +13,7 @@ The Control Strip icon flashes green when a session finishes, a hammer for build
 
 ## Requirements
 
-- A MacBook Pro with a Touch Bar, macOS 14 or later.
+- A MacBook Pro with a Touch Bar, macOS 15 or later (the agent hook uses the `jq` that ships with it).
 - Xcode to build it. There is no notarized download yet.
 
 ## Install

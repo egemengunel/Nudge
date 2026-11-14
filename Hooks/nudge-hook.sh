@@ -71,6 +71,9 @@ if [ "$event" = "SessionEnd" ]; then
 fi
 
 now=$(date +%s)
+# Agents run hooks in parallel (one per tool call in a batch), so each writes its own temp file.
+tmp="$file.$$.tmp"
+trap 'rm -f "$tmp"; printf "%s" "$reply"' EXIT
 previous=$(/usr/bin/jq -c . "$file" 2>/dev/null) || previous='{}'
 [ -n "$previous" ] || previous='{}'
 
@@ -80,7 +83,7 @@ case "$event" in
   beforeShellExecution|beforeMCPExecution)
     [ -s "$file" ] || exit 0
     printf '%s' "$payload" | /usr/bin/jq -c --argjson previous "$previous" \
-      '$previous + {sandboxed: (.sandbox // false)}' > "$file.tmp" 2>/dev/null && mv -f "$file.tmp" "$file"
+      '$previous + {sandboxed: (.sandbox // false)}' > "$tmp" 2>/dev/null && mv -f "$tmp" "$file"
     exit 0
     ;;
 esac
@@ -153,11 +156,12 @@ printf '%s' "$payload" | /usr/bin/jq -c \
              | if . == null then null else tostring | .[0:120] end),
     notification: (.notification_type | if . == "ToolPermission" then "permission_prompt" else . end),
     app: (if $app == "" then $previous.app else $app end),
+    transcript: ((.transcript_path // $previous.transcript) | if type == "string" and . != "" then . else null end),
     edited: (($previous.edited // []) - $edits + $edits | .[-50:]),
     updatedAt: $now,
     turnStartedAt: (if $event == "UserPromptSubmit"
                        or (($previous.event // "SessionStart") | IN("SessionStart", "Stop", "Interrupt"))
                     then $now else ($previous.turnStartedAt // $now) end)
-  }' > "$file.tmp" 2>/dev/null && mv -f "$file.tmp" "$file"
+  }' > "$tmp" 2>/dev/null && mv -f "$tmp" "$file"
 
 exit 0

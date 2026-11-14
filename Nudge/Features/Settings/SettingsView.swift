@@ -231,13 +231,8 @@ private struct AboutPane: View {
 
 extension View {
     /// No title in the title bar: every pane opens with its own header, so it would say it twice.
-    @ViewBuilder
     func titleHidden() -> some View {
-        if #available(macOS 15, *) {
-            toolbar(removing: .title)
-        } else {
-            self
-        }
+        toolbar(removing: .title)
     }
 
     /// A Settings page on black, like the welcome guide, so the renders dissolve into it. The
