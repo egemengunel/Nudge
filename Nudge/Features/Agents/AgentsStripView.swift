@@ -13,6 +13,9 @@ final class AgentsStripView: NSView {
     private let scrollView = NSScrollView()
     private let emptyLabel = NSTextField(labelWithString: "No agent sessions active")
     private var shown: [AgentSession] = []
+    /// One pill per session, kept across refreshes: the strip refreshes every second and on
+    /// every hook event, and pulling a button out from under a finger cancels the tap.
+    private var pills: [String: NSButton] = [:]
 
     private static let font = NSFont.systemFont(ofSize: 14)
     private static let waitingBezel = NSColor(srgbRed: 0.40, green: 0.24, blue: 0.02, alpha: 1)
@@ -54,10 +57,32 @@ final class AgentsStripView: NSView {
     func update(_ sessions: [AgentSession], now: Date = .now) {
         shown = sessions
         emptyLabel.isHidden = !sessions.isEmpty
-        stack.setViews(sessions.enumerated().map { pill(for: $1, tag: $0, now: now) }, in: .leading)
+
+        let ids = Set(sessions.map(\.id))
+        for (id, button) in pills where !ids.contains(id) {
+            stack.removeArrangedSubview(button)
+            button.removeFromSuperview()
+            pills[id] = nil
+        }
+        for (index, session) in sessions.enumerated() {
+            let button = pills[session.id] ?? makePill()
+            pills[session.id] = button
+            configure(button, for: session, now: now)
+            let current = stack.arrangedSubviews
+            if index < current.count, current[index] === button { continue }
+            if current.contains(where: { $0 === button }) {
+                stack.removeArrangedSubview(button)
+            }
+            stack.insertArrangedSubview(button, at: index)
+        }
     }
 
-    private func pill(for session: AgentSession, tag: Int, now: Date) -> NSButton {
+    private func makePill() -> NSButton {
+        NSButton(title: "", target: self, action: #selector(select(_:)))
+    }
+
+    /// Touches the button only where what it shows changed.
+    private func configure(_ button: NSButton, for session: AgentSession, now: Date) {
         let (dotColor, status) = Self.describe(session.state)
         let title = NSMutableAttributedString()
         title.append(NSAttributedString(string: "● ", attributes: [.foregroundColor: dotColor, .font: Self.font]))
@@ -71,16 +96,19 @@ final class AgentsStripView: NSView {
             title.append(NSAttributedString(string: "  " + elapsed, attributes: [.foregroundColor: NSColor.secondaryLabelColor, .font: Self.font]))
         }
 
-        let button = NSButton(title: "", target: self, action: #selector(select(_:)))
-        button.attributedTitle = title
-        button.tag = tag
-        button.bezelColor = session.state == .waiting ? Self.waitingBezel : nil
-        return button
+        if button.attributedTitle != title {
+            button.attributedTitle = title
+        }
+        let bezel = session.state == .waiting ? Self.waitingBezel : nil
+        if button.bezelColor != bezel {
+            button.bezelColor = bezel
+        }
+        button.identifier = NSUserInterfaceItemIdentifier(session.id)
     }
 
     @objc private func select(_ sender: NSButton) {
-        guard shown.indices.contains(sender.tag) else { return }
-        onSelect?(shown[sender.tag])
+        guard let session = shown.first(where: { $0.id == sender.identifier?.rawValue }) else { return }
+        onSelect?(session)
     }
 
     private static func describe(_ state: AgentSession.State) -> (NSColor, String) {
